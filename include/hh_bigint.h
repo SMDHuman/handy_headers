@@ -43,8 +43,12 @@ uint8_t hh_bigint_subtract(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint
 uint8_t hh_bigint_is_bigger(const hh_bigint_t *a, const hh_bigint_t *b);
 // a < b
 uint8_t hh_bigint_is_smaller(const hh_bigint_t *a, const hh_bigint_t *b);
+// a == b
+uint8_t hh_bigint_is_equal(const hh_bigint_t *a, const hh_bigint_t *b);
 uint8_t hh_bigint_copy(hh_bigint_t *to, const hh_bigint_t *from);
-//uint8_t bigint_multiply(const bigint_t *a, const bigint_t *b, bigint_t *result);
+uint8_t hh_bigint_convert_from_string(hh_bigint_t *bigint, const char *str);
+uint8_t hh_bigint_multiply(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *result);
+uint8_t hh_bigint_normalize(hh_bigint_t *bigint);
 //uint8_t bigint_divide(const bigint_t *a, const bigint_t *b, bigint_t *result);
 //uint8_t bigint_modulo(const bigint_t *a, const bigint_t *b, bigint_t *result);
 
@@ -184,6 +188,10 @@ uint8_t hh_bigint_add(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *r
 
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_subtract(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *result){
+    if(hh_bigint_is_equal(a, b)){
+        hh_bigint_set_at(result, 0, 0);
+        return 0;
+    }
     if(b->sign){
         hh_bigint_t new_b; hh_bigint_init(&new_b, 0);
         hh_bigint_copy(&new_b, b);
@@ -254,10 +262,101 @@ uint8_t hh_bigint_is_smaller(const hh_bigint_t *a, const hh_bigint_t *b){
 }
 
 //-----------------------------------------------------------------------------
+uint8_t hh_bigint_is_equal(const hh_bigint_t *a, const hh_bigint_t *b){
+    if(a->sign != b->sign) return 0;
+    size_t biggest_size = (a->size > b->size ? a->size : b->size);
+    for(size_t i = 0; i < biggest_size; i++){
+        if(hh_bigint_get_at(a, i) != hh_bigint_get_at(b, i)) return 0;
+    }
+    return 1;
+}
+
+//-----------------------------------------------------------------------------
 uint8_t hh_bigint_copy(hh_bigint_t *to, const hh_bigint_t *from){
     hh_bigint_resize(to, from->size);
     to->sign = from->sign;
     hh_bigint_set_buffer(to, from->data, from->size);
+}
+
+//-----------------------------------------------------------------------------
+// Convert a string to a bigint. Also hex for 0x, and binary for 0b works
+uint8_t hh_bigint_convert_from_string(hh_bigint_t *bigint, const char *str){
+    size_t len = strlen(str);
+    if(len == 0) return ERR;
+    
+    // Check for sign
+    if(str[0] == '-'){
+        bigint->sign = 1;
+        str++;
+        len--;
+    }else{
+        bigint->sign = 0;
+    }
+    
+    // Check for hex or binary
+    if(len >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'b')){
+        str += 2; // Skip "0x" or "0b"
+        len -= 2;
+    }
+    
+    // Resize bigint to fit the number
+    if(hh_bigint_resize(bigint, len) == ERR) return ERR;
+
+    // Convert string to bigint
+    for(size_t i = 0; i < len; i++){
+        char c = str[len - i - 1]; // Reverse order
+        uint8_t value;
+        if(c >= '0' && c <= '9'){
+            value = c - '0';
+        }else if(c >= 'a' && c <= 'f'){
+            value = c - 'a' + 10;
+        }else if(c >= 'A' && c <= 'F'){
+            value = c - 'A' + 10;
+        }else{
+            return ERR; // Invalid character
+        }
+        hh_bigint_set_at(bigint, value, i);
+    }
+}
+//-----------------------------------------------------------------------------
+uint8_t hh_bigint_multiply(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *result){
+    if(a->sign != b->sign) result->sign = 1;
+    else result->sign = 0;
+    hh_bigint_set_int32(result, 0);
+
+    // Perform multiplication for big numbers
+    hh_bigint_t q; hh_bigint_init(&q, 0);
+    for(size_t i = 0; i < b->size; i++){
+        hh_bigint_t row; hh_bigint_init(&row, 0);
+        uint8_t carry = 0;
+        for(size_t j = 0; j < a->size; j++){
+            uint16_t product = hh_bigint_get_at(b, i) * hh_bigint_get_at(a, j);
+            hh_bigint_t product_bigint; hh_bigint_init(&product_bigint, 0);
+            hh_bigint_set_at(&product_bigint, (uint8_t)(product & 0xff), j);
+            hh_bigint_set_at(&product_bigint, (uint8_t)(product >> 8), j+1);
+            hh_bigint_add(&row, &product_bigint, &row);
+        }
+        hh_bigint_resize(&row, row.size + i);
+        memcpy(&row.data[i], &row.data[0], row.size - i);
+        memset(&row.data[0], 0, i);
+        hh_bigint_add(&row, result, result);
+    }
+    hh_bigint_normalize(result);
+}
+//-----------------------------------------------------------------------------
+uint8_t hh_bigint_normalize(hh_bigint_t *bigint){
+    // Remove leading zeros
+    size_t new_size = bigint->size;
+    while(new_size > 0 && bigint->data[new_size - 1] == 0){
+        new_size--;
+    }
+    if(new_size == 0){
+        bigint->sign = 0; // Reset sign for zero
+        new_size = 1; // At least one byte for zero
+    }
+    if(new_size < bigint->size){
+        hh_bigint_resize(bigint, new_size);
+    }
 }
 
 #endif // HH_BIGINT_IMPLEMENTATION
