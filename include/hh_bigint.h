@@ -5,19 +5,48 @@
 // functions return 255 on failure
 //-----------------------------------------------------------------------------
 // Author		: github.com/SMDHuman
-// Last Update	: 17.08.2025
+// Last Update	: 28.08.2025
 //-----------------------------------------------------------------------------
 #ifndef HH_BIGINT_H
 #define HH_BIGINT_H
 
 #define ERR 255
-#define INITIAL_CAPACITY 4
+
+#ifndef INITIAL_CAPACITY
+    #define INITIAL_CAPACITY 4
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
+//-----------------------------------------------------------------------------
+#ifdef HH_BIGINT_SHORT_PREFIX
+#define hbi_init hh_bigint_init
+#define hbi_deinit hh_bigint_deinit
+#define hbi_resize hh_bigint_resize
+#define hbi_set_zero hh_bigint_set_zero
+#define hbi_set_int32 hh_bigint_set_int32
+#define hbi_set_uint32 hh_bigint_set_uint32
+#define hbi_set_uint16 hh_bigint_set_uint16
+#define hbi_set_buffer hh_bigint_set_buffer
+#define hbi_set_at hh_bigint_set_at
+#define hbi_get_at hh_bigint_get_at
+#define hbi_print hh_bigint_print
+#define hbi_print_hex hh_bigint_print_hex
+#define hbi_add_int32 hh_bigint_add_int32
+#define hbi_subtract_int32 hh_bigint_subtract_int32
+#define hbi_add hh_bigint_add
+#define hbi_subtract hh_bigint_subtract
+#define hbi_is_bigger hh_bigint_is_bigger
+#define hbi_is_smaller hh_bigint_is_smaller
+#define hbi_is_equal hh_bigint_is_equal
+#define hbi_copy hh_bigint_copy
+#define hbi_convert_from_string hh_bigint_convert_from_string
+#define hbi_multiply hh_bigint_multiply
+#define hbi_normalize hh_bigint_normalize
+#endif
+//-----------------------------------------------------------------------------
 // Big integer structure
 typedef struct {
     uint8_t *data;     // Pointer to the data
@@ -30,15 +59,19 @@ uint8_t hh_bigint_init(hh_bigint_t *bigint, const int32_t init_number);
 uint8_t hh_bigint_deinit(hh_bigint_t *bigint);
 uint8_t hh_bigint_resize(hh_bigint_t *bigint, const size_t new_capacity);
 uint8_t hh_bigint_set_zero(hh_bigint_t *bigint);
+uint8_t hh_bigint_set_int64(hh_bigint_t *bigint, const int64_t value);
 uint8_t hh_bigint_set_int32(hh_bigint_t *bigint, const int32_t value);
 uint8_t hh_bigint_set_uint32(hh_bigint_t *bigint, const uint32_t value);
+uint8_t hh_bigint_set_uint16(hh_bigint_t *bigint, const uint16_t value);
 uint8_t hh_bigint_set_buffer(hh_bigint_t *bigint, const void *data, const size_t size);
+uint64_t hh_bigint_get_uint64(const hh_bigint_t *bigint);
 uint8_t hh_bigint_set_at(hh_bigint_t *bigint, const uint8_t value, const size_t index);
 uint8_t hh_bigint_get_at(const hh_bigint_t *bigint, const size_t index);
 uint8_t hh_bigint_print(const hh_bigint_t *bigint);
 uint8_t hh_bigint_print_hex(const hh_bigint_t *bigint);
 uint8_t hh_bigint_add_int32(hh_bigint_t *bigint, const int32_t value);
 uint8_t hh_bigint_subtract_int32(hh_bigint_t *bigint, const int32_t value);
+uint8_t hh_bigint_subtract_int64(hh_bigint_t *bigint, const int64_t value);
 uint8_t hh_bigint_add(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *result);
 uint8_t hh_bigint_subtract(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *result);
 // a > b
@@ -75,6 +108,7 @@ uint8_t hh_bigint_deinit(hh_bigint_t *bigint){
     free(bigint->data);
     bigint->size = 0;
     bigint->sign = 0;    
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -86,6 +120,7 @@ uint8_t hh_bigint_resize(hh_bigint_t *bigint, const size_t new_capacity){
     if(bigint->data == NULL){
         return ERR;
     }
+    return 0;
 }
 //-----------------------------------------------------------------------------
 // Set the value of a bigint to zero
@@ -95,7 +130,17 @@ uint8_t hh_bigint_set_zero(hh_bigint_t *bigint){
     bigint->sign = 0;
     return 0;
 }
-
+//-----------------------------------------------------------------------------
+uint8_t hh_bigint_set_int64(hh_bigint_t *bigint, int64_t value){
+    if(value < 0){
+        bigint->sign = 1;
+        value = -value;
+    }else if(value > 0){
+        bigint->sign = 0;
+    }
+    if(hh_bigint_set_buffer(bigint, &value, 8) == ERR) return ERR;
+    return 0;
+}
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_set_int32(hh_bigint_t *bigint, int32_t value){
     if(value < 0){
@@ -105,11 +150,19 @@ uint8_t hh_bigint_set_int32(hh_bigint_t *bigint, int32_t value){
         bigint->sign = 0;
     }
     if(hh_bigint_set_buffer(bigint, &value, 4) == ERR) return ERR;
+    return 0;
 }
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_set_uint32(hh_bigint_t *bigint, const uint32_t value){
     bigint->sign = 0;
     if(hh_bigint_set_buffer(bigint, &value, 4) == ERR) return ERR;
+    return 0;
+}
+//-----------------------------------------------------------------------------
+uint8_t hh_bigint_set_uint16(hh_bigint_t *bigint, const uint16_t value){
+    bigint->sign = 0;
+    if(hh_bigint_set_buffer(bigint, &value, 2) == ERR) return ERR;
+    return 0;
 }
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_set_buffer(hh_bigint_t *bigint, const void *data, const size_t size){
@@ -120,6 +173,16 @@ uint8_t hh_bigint_set_buffer(hh_bigint_t *bigint, const void *data, const size_t
     if(bigint->size > size){ 
         memset(&bigint->data[size], 0, bigint->size - size);
     }
+    return 0;
+}
+//-----------------------------------------------------------------------------
+uint64_t hh_bigint_get_uint64(const hh_bigint_t *bigint){
+    if(bigint == NULL) return 0;
+    uint64_t value = 0;
+    for(size_t i = 0; i < 8; i++){
+        value |= ((uint64_t)hh_bigint_get_at(bigint, i) << (i * 8));
+    }
+    return value;
 }
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_set_at(hh_bigint_t *bigint, const uint8_t value, const size_t index){
@@ -127,6 +190,7 @@ uint8_t hh_bigint_set_at(hh_bigint_t *bigint, const uint8_t value, const size_t 
         if(hh_bigint_resize(bigint, index+1) == ERR) return ERR;        
     }
     bigint->data[index] = value;
+    return 0;
 }
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_get_at(const hh_bigint_t *bigint, const size_t index){
@@ -142,6 +206,7 @@ uint8_t hh_bigint_print_hex(const hh_bigint_t *bigint){
         printf("%02x", bigint->data[bigint->size - i - 1]);
     }
     printf("\n");
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -152,6 +217,7 @@ uint8_t hh_bigint_add_int32(hh_bigint_t *bigint, const int32_t value){
     hh_bigint_copy(bigint, &c);
     hh_bigint_deinit(&b);
     hh_bigint_deinit(&c);
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -162,6 +228,18 @@ uint8_t hh_bigint_subtract_int32(hh_bigint_t *bigint, const int32_t value){
     hh_bigint_copy(bigint, &c);
     hh_bigint_deinit(&b);
     hh_bigint_deinit(&c);
+    return 0;
+}
+//-----------------------------------------------------------------------------
+uint8_t hh_bigint_subtract_int64(hh_bigint_t *bigint, const int64_t value){
+    hh_bigint_t b; hh_bigint_init(&b, 0);
+    hh_bigint_set_int64(&b, value);
+    hh_bigint_t c; hh_bigint_init(&c, 0);
+    hh_bigint_subtract(bigint, &b, &c);
+    hh_bigint_copy(bigint, &c);
+    hh_bigint_deinit(&b);
+    hh_bigint_deinit(&c);
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -206,6 +284,7 @@ uint8_t hh_bigint_add(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *r
     }
     hh_bigint_copy(result, &res);
     hh_bigint_deinit(&res);
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -256,6 +335,7 @@ uint8_t hh_bigint_subtract(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint
     if(biggest_size < result->size){
         memset(&result->data[biggest_size], 0, result->size-biggest_size);
     }
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -268,6 +348,7 @@ uint8_t hh_bigint_is_bigger(const hh_bigint_t *a, const hh_bigint_t *b){
         if(a_val > b_val) return 1;
         if(a_val < b_val) return 0;
     }
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -281,6 +362,7 @@ uint8_t hh_bigint_is_smaller(const hh_bigint_t *a, const hh_bigint_t *b){
         if(a_val > b_val){return 0;}
         if(a_val < b_val){return 1;}
     }
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -298,6 +380,7 @@ uint8_t hh_bigint_copy(hh_bigint_t *to, const hh_bigint_t *from){
     hh_bigint_resize(to, from->size);
     to->sign = from->sign;
     hh_bigint_set_buffer(to, from->data, from->size);
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -365,6 +448,7 @@ uint8_t hh_bigint_convert_from_string(hh_bigint_t *bigint, const char *str){
         hh_bigint_add(&value, bigint, bigint);
     }
     hh_bigint_normalize(bigint);
+    return 0;
 }
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_multiply(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint_t *result){
@@ -376,7 +460,6 @@ uint8_t hh_bigint_multiply(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint
     hh_bigint_t q; hh_bigint_init(&q, 0);
     for(size_t i = 0; i < b->size; i++){
         hh_bigint_t row; hh_bigint_init(&row, 0);
-        uint8_t carry = 0;
         for(size_t j = 0; j < a->size; j++){
             uint16_t product = hh_bigint_get_at(b, i) * hh_bigint_get_at(a, j);
             hh_bigint_t product_bigint; hh_bigint_init(&product_bigint, 0);
@@ -391,6 +474,7 @@ uint8_t hh_bigint_multiply(const hh_bigint_t *a, const hh_bigint_t *b, hh_bigint
     }
     hh_bigint_normalize(&res);
     hh_bigint_copy(result, &res);
+    return 0;
 }
 //-----------------------------------------------------------------------------
 uint8_t hh_bigint_normalize(hh_bigint_t *bigint){
@@ -406,6 +490,7 @@ uint8_t hh_bigint_normalize(hh_bigint_t *bigint){
     if(new_size < bigint->size){
         hh_bigint_resize(bigint, new_size);
     }
+    return 0;
 }
 
 #endif // HH_BIGINT_IMPLEMENTATION
